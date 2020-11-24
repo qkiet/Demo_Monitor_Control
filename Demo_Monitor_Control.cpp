@@ -151,7 +151,7 @@ int main()
         switch (session_type_answer)
         {
         case 1:
-            RunUnsecuredSession(&client_sock, number_of_transaction, message_size_answer, false);
+            RunUnsecuredSession(&client_sock, number_of_transaction, real_message_size, false);
             break;
         case 2:
             RunEncryptedSession(&client_sock, number_of_transaction, message_size_answer);
@@ -190,3 +190,191 @@ int main()
 
 
 
+
+/// <summary>
+/// Sends the command and wait for response.
+/// </summary>
+/// <param name="PDU_socket">The pdu socket.</param>
+/// <param name="command">The command.</param>
+/// <param name="command_length">Length of the command.</param>
+/// <param name="encrypt_key">The encrypt key.</param>
+/// <param name="key_size">Size of the key.</param>
+/// <param name="encrypt_iv">The encrypt iv.</param>
+/// <param name="backup_key">The backup key.</param>
+/// <param name="is_replay_attack">if set to <c>true</c> [is replay attack].</param>
+/// <param name="message_size">Size of the message.</param>
+/// <param name="current_command_id">The current command identifier.</param>
+/// <param name="sent_payload">The sent payload.</param>
+/// <param name="sent_payload_length">Length of the sent payload.</param>
+/// <returns>true if command is executed and response successfuly, false otherwise</returns>
+//bool SendCommand(SOCKET *PDU_socket,
+//    uint8_t* command, 
+//    uint16_t command_length, 
+//    uint8_t* encrypt_key, 
+//    uint8_t key_size, 
+//    uint8_t* encrypt_iv, 
+//    uint8_t* backup_key, 
+//    bool is_replay_attack,
+//    uint16_t message_size,
+//    uint16_t current_command_id,
+//    uint8_t* sent_payload,
+//    uint16_t sent_payload_length)
+//{
+//    uint8_t temp_payload[1060],
+//            payload_to_PDU[1060],
+//            receive_buff[1060],
+//            temp_buff[1060],
+//            printed_string[1060],
+//            next_encrypt_hint[SESSION_NONCE_SIZE],
+//            reset_key_hint[SESSION_NONCE_SIZE];
+//
+//
+//    bool is_session_end = false, is_wait_for_reset_key_response = false;
+//
+//    if (!is_replay_attack)
+//    {
+//        PrepareSendingBuffer(encrypt_key, key_size, encrypt_iv, command, command_length, message_size, true, true, current_command_id, payload_to_PDU);
+//    }
+//    else
+//    {
+//        memcpy(payload_to_PDU, sent_payload, sent_payload_length);
+//    }
+//
+//    is_session_end = false;
+//    if (send(*PDU_socket, (char*)payload_to_PDU, message_size + HMAC_SIZE, 0) == message_size + HMAC_SIZE)
+//    {
+//
+//        //Now it wait for response and deal with many cases
+//        while (1)
+//        {
+//            if (recv(*PDU_socket, (char*)receive_buff, message_size + HMAC_SIZE, 0) == message_size + HMAC_SIZE)
+//            {
+//                //Valid with encrypt key
+//                if (CompareHMAC_SHA256(receive_buff + HMAC_SIZE, message_size, encrypt_key, SESSION_ENCRYPT_KEY_SIZE, receive_buff))
+//                {
+//                    printf("Valid with Encrypt Key!!\n");
+//                    //Print response
+//
+//                    Encrypt(receive_buff + HMAC_SIZE, message_size, encrypt_key, encrypt_iv, temp_buff);
+//
+//                    //A NAK response. Resend command!
+//                    if (strncmp((char*)(temp_buff + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE + SESSION_NONCE_SIZE), "NAK", 3) == 0)
+//                    {
+//                        printf("A NAK response\n\n\n");
+//                        //Update encrypt key
+//                        memcpy(next_encrypt_hint, temp_buff + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE, SESSION_NONCE_SIZE);
+//                        UpdateEncryptKey(secret_key, next_encrypt_hint, encrypt_key);
+//
+//                        //Resend command
+//                        PrepareSendingBuffer(
+//                            encrypt_key,
+//                            SESSION_ENCRYPT_KEY_SIZE,
+//                            encrypt_iv,
+//                            command,
+//                            command_length,
+//                            message_size,
+//                            true,
+//                            true,
+//                            current_command_id,
+//                            payload_to_PDU);
+//
+//                    }
+//                    //Normal command response
+//                    else
+//                    {
+//                        memcpy(printed_string, temp_buff, message_size);
+//                        printed_string[(uint16_t)(*printed_string) + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE] = '\0';
+//
+//                        printf("Receive Response: %s\n\n\n", printed_string + SESSION_NONCE_SIZE + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE);
+//                        //Update encrypt key
+//                        memcpy(next_encrypt_hint, temp_buff + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE, SESSION_NONCE_SIZE);
+//                        UpdateEncryptKey(secret_key, next_encrypt_hint, encrypt_key);
+//                        current_command_id++;
+//
+//                        //Jump back to wait for user input
+//                        return true;
+//
+//                    }
+//
+//                }
+//
+//                //Valid with backup key. This happen only when PDU response to Reset Key Routine command
+//                else if (CompareHMAC_SHA256(receive_buff + HMAC_SIZE, message_size, backup_key, SESSION_ENCRYPT_KEY_SIZE, receive_buff))
+//                {
+//                    printf("Valid with Backup Key!!\n");
+//                    is_wait_for_reset_key_response = false;
+//                    Encrypt(receive_buff + HMAC_SIZE, message_size, backup_key, encrypt_iv, temp_buff);
+//
+//                    //Check for response
+//                    if (strncmp((char*)(temp_buff + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE + SESSION_NONCE_SIZE), "OK", 2) == 0)
+//                    {
+//                        printf("Reset Key Response!!\n\n\n");
+//                        //Update encrypt key
+//                        memcpy(reset_key_hint, temp_buff + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE, SESSION_NONCE_SIZE);
+//                        ResetKeyUpdate(secret_key, reset_key_hint, backup_key, encrypt_key);
+//                        //Resend command
+//                        PrepareSendingBuffer(
+//                            encrypt_key,
+//                            SESSION_ENCRYPT_KEY_SIZE,
+//                            encrypt_iv,
+//                            command,
+//                            command_length,
+//                            message_size,
+//                            true,
+//                            true,
+//                            current_command_id,
+//                            payload_to_PDU);
+//                    }
+//
+//                    //Bad response for reset key command. Close connection
+//                    else
+//                    {
+//                        return false;
+//                    }
+//                }
+//
+//                //Invalid response
+//                else
+//                {
+//                    printf("Invalid Response!!\n\n\n");
+//
+//                    //If it already wait for reset key response but still invalid, then close connection
+//                    if (is_wait_for_reset_key_response)
+//                    {
+//                        return false;
+//                    }
+//                    snprintf((char*)temp_payload, 9, "ResetKey");
+//                    is_wait_for_reset_key_response = true;
+//                    PrepareSendingBuffer(backup_key,
+//                        SESSION_ENCRYPT_KEY_SIZE,
+//                        encrypt_iv,
+//                        temp_payload,
+//                        strlen((char*)temp_payload),
+//                        message_size,
+//                        true,
+//                        true,
+//                        current_command_id,
+//                        payload_to_PDU);
+//                }
+//            }
+//
+//            //Timeout sending or connection problem. Close connection
+//            else
+//            {
+//                return false;
+//
+//            }
+//
+//            //If it made here, GUI need to resend to PDU or send reset key command. If there is sending problem, close connection
+//            if (send(*PDU_socket, (char*)payload_to_PDU, message_size + HMAC_SIZE, 0) != message_size + HMAC_SIZE)
+//            {
+//                return false;
+//            }
+//        }
+//    }
+//    else
+//    {
+//        return false;
+//    }
+//
+//}

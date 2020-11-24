@@ -128,7 +128,7 @@ void UpdateEncryptKey(uint8_t* secret_key, uint8_t* hint_number, uint8_t* encryp
     memcpy(temp_buff + SECRET_KEY_SIZE, encrypt_key, SESSION_ENCRYPT_KEY_SIZE);
     memcpy(temp_buff + SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE, hint_number, SESSION_NONCE_SIZE);
     SHA256Calculate(temp_buff, SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE + SESSION_NONCE_SIZE, sha256_digest);
-    memcpy(encrypt_key, sha256_digest, SECRET_KEY_SIZE);
+    memcpy(encrypt_key, sha256_digest, SESSION_ENCRYPT_KEY_SIZE);
 }
 
 

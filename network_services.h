@@ -21,6 +21,8 @@
 #define MESSAGE_COMMAND_ID_SIZE 2
 #define TYPE_PAYLOAD_NORMAL 0x00
 #define TYPE_PAYLOAD_RESEND 0x01
+#define SESSION_KIND_DEMO 0x00
+#define SESSION_KIND_MEASURE 0x01
 
 
 extern void InitNetworkService(uint8_t* input_password);
