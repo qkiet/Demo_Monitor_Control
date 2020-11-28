@@ -48,7 +48,7 @@ pdu_command commands_list[9] =
         "This command will request status of both LED"
     },
     {
-        "REPEAT",
+        "Repeat Last Command",
         "This command will repeat last command. Simulate Replay Attack"
     },
     {
@@ -117,6 +117,7 @@ bool CompareArray(uint8_t* array1, uint8_t* array2, uint16_t size)
 /// <param name="encrypt_iv">The encrypt iv.</param>
 /// <param name="backup_key">The backup key.</param>
 /// <param name="is_replay_attack">if set to <c>true</c> [is replay attack].</param>
+/// <param name="is_corrupted">will message will get corrupted?.</param>
 /// <param name="message_size">Size of the message.</param>
 /// <param name="current_command_id">The current command identifier.</param>
 /// <param name="sent_payload">The sent payload.</param>
@@ -130,6 +131,7 @@ bool SendCommand(SOCKET* PDU_socket,
     uint8_t* encrypt_iv,
     uint8_t* backup_key,
     bool is_replay_attack,
+    bool is_corrupted,
     uint16_t message_size,
     uint16_t current_command_id,
     uint8_t* sent_payload,
@@ -156,6 +158,14 @@ bool SendCommand(SOCKET* PDU_socket,
     }
 
     is_session_end = false;
+
+    // Corrupt message if specified
+    if (is_corrupted)
+    {
+        payload_to_PDU[0] = !payload_to_PDU[0];
+    }
+
+
     if (send(*PDU_socket, (char*)payload_to_PDU, message_size + HMAC_SIZE, 0) == message_size + HMAC_SIZE)
     {
 
@@ -181,17 +191,25 @@ bool SendCommand(SOCKET* PDU_socket,
                         UpdateEncryptKey(secret_key, next_encrypt_hint, encrypt_key);
 
                         //Resend command
-                        PrepareSendingBuffer(
-                            encrypt_key,
-                            SESSION_ENCRYPT_KEY_SIZE,
-                            encrypt_iv,
-                            command,
-                            command_length,
-                            message_size,
-                            true,
-                            true,
-                            current_command_id,
-                            payload_to_PDU);
+                        if (!is_replay_attack)
+                        {
+                            PrepareSendingBuffer(
+                                encrypt_key,
+                                SESSION_ENCRYPT_KEY_SIZE,
+                                encrypt_iv,
+                                command,
+                                command_length,
+                                message_size,
+                                true,
+                                true,
+                                current_command_id,
+                                payload_to_PDU);
+                        }
+                        else
+                        {
+                            memcpy(payload_to_PDU, sent_payload, sent_payload_length);
+                        }
+
 
                     }
                     //Normal command response
@@ -317,7 +335,7 @@ void RunSecuredSession(SOCKET* running_socket, int session_length, uint16_t mess
         Sha256_digest[32],
         Sha512_digest[64];
     uint16_t current_command_id = 0;
-    int answer;
+    int answer, answer_message_corrupted;
     int total_measured_sent_cmd = 0;
     bool replay_attack = false,
         is_session_end = false,
@@ -325,6 +343,7 @@ void RunSecuredSession(SOCKET* running_socket, int session_length, uint16_t mess
     uint8_t session_kind;
     int send_timeout = SEND_TIMEOUT;
     int receive_timeout = RECEIVE_TIMEOUT;
+    bool is_message_corrupted = false;
     setsockopt(*running_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&receive_timeout, sizeof(receive_timeout));
     setsockopt(*running_socket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&send_timeout, sizeof(send_timeout));
 
@@ -426,6 +445,7 @@ void RunSecuredSession(SOCKET* running_socket, int session_length, uint16_t mess
                 encrypt_iv,
                 backup_key,
                 replay_attack,
+                is_message_corrupted,
                 message_size,
                 current_command_id,
                 old_send_buff,
@@ -459,6 +479,25 @@ void RunSecuredSession(SOCKET* running_socket, int session_length, uint16_t mess
                 printf("Enter answer (1-%d): ", total_number_of_commands);
                 std::cin >> answer;
 
+                //Stop, session done
+                if (answer == total_number_of_commands)
+                {
+                    is_session_end = true;
+                    break;
+                }
+
+                printf("Is message corrupted? Answer (0,1): ");
+                std::cin >> answer_message_corrupted;
+
+                if (answer_message_corrupted > 0)
+                {
+                    is_message_corrupted = true;
+                }
+                else
+                {
+                    is_message_corrupted = false;
+                }
+
                 //If this is REPEAT command
                 if (answer == total_number_of_commands - 1)
                 {
@@ -473,11 +512,7 @@ void RunSecuredSession(SOCKET* running_socket, int session_length, uint16_t mess
                 {
                     break;
                 }
-                if (answer == total_number_of_commands)
-                {
-                    is_session_end = true;
-                    break;
-                }
+
             }
 
             if (is_session_end)
@@ -494,6 +529,7 @@ void RunSecuredSession(SOCKET* running_socket, int session_length, uint16_t mess
                 encrypt_iv,
                 backup_key,
                 replay_attack,
+                is_message_corrupted,
                 message_size,
                 current_command_id,
                 old_send_buff,
@@ -522,7 +558,7 @@ void RunUnsecuredSession(SOCKET* running_socket, int transaction_length, int mes
         default_encrypt_key[SESSION_ENCRYPT_KEY_SIZE] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
         default_encrypt_iv[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
         printed_string[MAXIMUM_PACKET_LENGTH];
-    int answer;
+    int answer, last_answer = -1;
     int send_timeout = SEND_TIMEOUT;
     int receive_timeout = RECEIVE_TIMEOUT;
  
@@ -596,6 +632,7 @@ void RunUnsecuredSession(SOCKET* running_socket, int transaction_length, int mes
                         //If this is REPEAT command
                         if (answer == total_number_of_commands - 1)
                         {
+                            answer = last_answer;
                             replay_attack = true;
                         }
                         else
@@ -605,6 +642,7 @@ void RunUnsecuredSession(SOCKET* running_socket, int transaction_length, int mes
 
                         if ((0 < answer) && (answer < total_number_of_commands))
                         {
+                            last_answer = answer;
                             break;
                         }
                         if (answer == total_number_of_commands)
@@ -613,38 +651,35 @@ void RunUnsecuredSession(SOCKET* running_socket, int transaction_length, int mes
                         }
                     }
                     //Prepare first sending buffer
-                    if (!replay_attack)
+                    memcpy(payload, commands_list[answer - 1].command_text, strlen(commands_list[answer - 1].command_text));
+                    if (is_encrypted)
                     {
-                        memcpy(payload, commands_list[answer - 1].command_text, strlen(commands_list[answer - 1].command_text));
-                        if (is_encrypted)
-                        {
                             
-                            PrepareSendingBuffer(
-                                default_encrypt_key, 
-                                SESSION_ENCRYPT_KEY_SIZE, 
-                                default_encrypt_iv, 
-                                payload, 
-                                strlen(commands_list[answer - 1].command_text), 
-                                message_size, 
-                                false, 
-                                true, 
-                                current_command_id, 
-                                payload_to_PDU);
-                        }
-                        else
-                        {
-                            PrepareSendingBuffer(
-                                NULL, 
-                                0, 
-                                NULL, 
-                                payload, 
-                                strlen(commands_list[answer - 1].command_text), 
-                                message_size, 
-                                false, 
-                                false, 
-                                current_command_id,
-                                payload_to_PDU);
-                        }
+                        PrepareSendingBuffer(
+                            default_encrypt_key, 
+                            SESSION_ENCRYPT_KEY_SIZE, 
+                            default_encrypt_iv, 
+                            payload, 
+                            strlen(commands_list[answer - 1].command_text), 
+                            message_size, 
+                            false, 
+                            true, 
+                            current_command_id, 
+                            payload_to_PDU);
+                    }
+                    else
+                    {
+                        PrepareSendingBuffer(
+                            NULL, 
+                            0, 
+                            NULL, 
+                            payload, 
+                            strlen(commands_list[answer - 1].command_text), 
+                            message_size, 
+                            false, 
+                            false, 
+                            current_command_id,
+                            payload_to_PDU);
                     }
 
                     //Begin send and wait for response
@@ -658,7 +693,6 @@ void RunUnsecuredSession(SOCKET* running_socket, int transaction_length, int mes
                                 if (is_encrypted)
                                 {
                                     Encrypt(receive_buff, message_size, default_encrypt_key, default_encrypt_iv, temp_buff);
-                                    
                                 }
                                 else
                                 {
@@ -670,7 +704,7 @@ void RunUnsecuredSession(SOCKET* running_socket, int transaction_length, int mes
                                 //This is not NAK, update command id
                                 if (strncmp((char*)(temp_buff + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE), "NAK", 3) != 0)
                                 {
-                                    printf("Valid response!\n\n");
+                                    printf("Response: %s\n\n", temp_buff + MESSAGE_LENGTH_HEADER_SIZE + MESSAGE_COMMAND_ID_SIZE);
                                     current_command_id++;
                                     break;
                                 }
@@ -714,54 +748,4 @@ void RunUnsecuredSession(SOCKET* running_socket, int transaction_length, int mes
 
 UNSECURED_SESSION_END:
     printf("Done Session\n");
-}
-
-void RunEncryptedSession(SOCKET* running_socket, int transaction_length, int message_answer)
-{
-    //unsigned char announce_buff[10];
-    //unsigned char receive_buff[1024];
-    //unsigned char decrypted_buff[1024];
-    //unsigned char ciphertext_to_pdu_buffer[1024];
-    //unsigned char session_encrypt_key[] = { 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 };
-    //unsigned char session_encrypt_iv[] = { 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 };
-    //bool is_session_error = false;
-    //uint64_t start_tick, end_tick;
-
-    ////1 stand for Encrypted Session
-    //snprintf((char*)announce_buff, 4, "1_%d", message_answer - 1);
-
-    ////If master (PDU) receive sucessfully, begin session
-    //if (send(*running_socket, (char*)announce_buff, 3, 0) == 3)
-    //{
-    //    start_tick = ReadTSC();
-
-    //    for (int i = 0; i < transaction_length; i++)
-    //    {
-    //        Encrypt((unsigned char*)sending_to_pdu_buffer, real_message_size, session_encrypt_key, session_encrypt_iv, (unsigned char*)ciphertext_to_pdu_buffer);
-    //        Decrypt((unsigned char*)ciphertext_to_pdu_buffer, real_message_size, session_encrypt_key, session_encrypt_iv, (unsigned char*)decrypted_buff);
-    //        if (send(*running_socket,(char*) ciphertext_to_pdu_buffer, real_message_size, 0) == real_message_size)
-    //        {
-    //            if (recv(*running_socket, (char*)receive_buff, real_message_size, 0) != real_message_size)
-    //            {
-    //                Decrypt((unsigned char*)receive_buff, real_message_size, session_encrypt_key, session_encrypt_iv, (unsigned char*)decrypted_buff);
-    //                is_session_error = true;
-    //                break;
-    //            }
-    //        }
-    //        else
-    //        {
-    //            is_session_error = true;
-    //            break;
-    //        }
-    //    }
-    //    end_tick = ReadTSC();
-    //    if (!is_session_error)
-    //    {
-    //        printf("Elapse time is %9.6f\n", Duration(start_tick, end_tick));
-    //    }
-    //    else
-    //    {
-    //        std::cout << "Session ERROR\n";
-    //    }
-    //}
 }

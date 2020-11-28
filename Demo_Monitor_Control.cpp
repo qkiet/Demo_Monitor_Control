@@ -15,7 +15,7 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-#define PDU_IP "192.168.2.100"
+#define PDU_IP "192.168.2.102"
 #define CLIENT_PORT 50
 #define WIN32_LEAN_AND_MEAN
 
@@ -154,7 +154,7 @@ int main()
             RunUnsecuredSession(&client_sock, number_of_transaction, real_message_size, false);
             break;
         case 2:
-            RunEncryptedSession(&client_sock, number_of_transaction, message_size_answer);
+            RunUnsecuredSession(&client_sock, number_of_transaction, real_message_size, true);
             break;
         default:
             RunSecuredSession(&client_sock, number_of_transaction, real_message_size);
