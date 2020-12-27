@@ -4,6 +4,7 @@
 #include <openssl/hmac.h>
 #include <openssl/err.h>
 #include <openssl/sha.h>
+#include <openssl/md5.h>
 #include <iostream>
 #include "network_services.h"
 

@@ -127,7 +127,7 @@ void UpdateEncryptKey(uint8_t* secret_key, uint8_t* hint_number, uint8_t* encryp
     memcpy(temp_buff, secret_key, SECRET_KEY_SIZE);
     memcpy(temp_buff + SECRET_KEY_SIZE, encrypt_key, SESSION_ENCRYPT_KEY_SIZE);
     memcpy(temp_buff + SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE, hint_number, SESSION_NONCE_SIZE);
-    SHA256Calculate(temp_buff, SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE + SESSION_NONCE_SIZE, sha256_digest);
+    MD5Calculate(temp_buff, SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE + SESSION_NONCE_SIZE, sha256_digest);
     memcpy(encrypt_key, sha256_digest, SESSION_ENCRYPT_KEY_SIZE);
 }
 
@@ -290,6 +290,21 @@ static void PaddingNull(uint8_t* buffer_in_out, uint16_t input_length, uint16_t 
     } 
 
 }
+
+/// <summary>
+/// Calculate digest MD5 of incoming data. Wrapper of OpenSSL's MD5 API
+/// </summary>
+/// <param name="data">The data. [in]</param>
+/// <param name="data_length">Length of the data. [in]</param>
+/// <param name="digest">The output digest. [out]</param>
+void MD5Calculate(uint8_t* data, uint16_t data_length, uint8_t* digest)
+{
+    MD5_CTX digest_ctx;
+    MD5_Init(&digest_ctx);
+    MD5_Update(&digest_ctx, data, data_length);
+    MD5_Final(digest, &digest_ctx);
+}
+
 
 /// <summary>
 /// Calculate digest SHA256 of incoming data. Wrapper of OpenSSL's SHA256 API
