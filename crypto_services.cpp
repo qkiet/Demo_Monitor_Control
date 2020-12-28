@@ -123,12 +123,12 @@ int CompareHMAC_SHA256(uint8_t* message, uint16_t message_length, uint8_t* key, 
 void UpdateEncryptKey(uint8_t* secret_key, uint8_t* hint_number, uint8_t* encrypt_key)
 {
     uint8_t temp_buff[SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE + SESSION_NONCE_SIZE];
-    uint8_t sha256_digest[32];
+    uint8_t md5_digest[32];
     memcpy(temp_buff, secret_key, SECRET_KEY_SIZE);
     memcpy(temp_buff + SECRET_KEY_SIZE, encrypt_key, SESSION_ENCRYPT_KEY_SIZE);
     memcpy(temp_buff + SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE, hint_number, SESSION_NONCE_SIZE);
-    MD5Calculate(temp_buff, SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE + SESSION_NONCE_SIZE, sha256_digest);
-    memcpy(encrypt_key, sha256_digest, SESSION_ENCRYPT_KEY_SIZE);
+    MD5Calculate(temp_buff, SECRET_KEY_SIZE + SESSION_ENCRYPT_KEY_SIZE + SESSION_NONCE_SIZE, md5_digest);
+    memcpy(encrypt_key, md5_digest, SESSION_ENCRYPT_KEY_SIZE);
 }
 
 

@@ -22,16 +22,162 @@
 uint16_t real_message_size;
 LARGE_INTEGER dummy_tick, start_session_tick, end_session_tick, freq;
 
+#define ASSERT(x, error_message) if (x == 0) {printf("Something Wrong! %s\n Press Ctrl + C to terminate program\n\n", error_message); for(;;);}
+ 
 
-void UserInput()
-{
+
+void PrintHelp()
+{   
+    printf("Monitor and Control System Client version 1.0.\n\n");
+    printf("Usage for execute: -i <smart_pdu_ip_address> -p <smart_pdu_port> -t <session_category> -s <session_secure_option> [-P <PDU_password>] [-n <number_of_commands] -S <message_size>\n");
+    printf("Usage for help: -h or --help\n\n");
+    printf("<session_category>: \"normal\" | \"measure\"\n");
+    printf("<session_secure_option>: \"secured\" | \"unsec\"\n");
+    printf("<message_size>: \"64\" | \"256\" | \"1024\"\n\n");
 
 }
 
 
-int main()
-{
 
+
+int main(int argc, char *argv[])
+{
+    typedef struct
+    {
+        char remote_ip_address[15];
+        uint16_t remote_port_number;
+        bool is_measure;
+        bool is_secured;
+        uint8_t PDU_password[20];
+        int number_of_command;
+        int message_size;
+    } SIMULATION_PARAMETERS;
+
+    SIMULATION_PARAMETERS sim_params
+    {
+        "\0",
+        0,
+        false,
+        false,
+        "\0",
+        0,
+        0
+    };
+
+    //
+    // Process user argument section
+    //
+
+    // Scan for no argument 
+    if (argc <= 1)
+    {
+        PrintHelp();
+        return 0;
+    }
+    uint16_t temp_number;
+    // Scan for help arugment
+    for (int i = 1; i < argc; i++)
+    {
+        if ((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0))
+        {
+            PrintHelp();
+            return 0;
+        }
+        //
+        // Remote IP Address argument
+        //
+        if (strcmp(argv[i], "-i") == 0)
+        {
+            memcpy(sim_params.remote_ip_address, argv[i+1], strlen(argv[i+1]));
+        }
+        //
+        // Remote port number argument
+        //
+        if (strcmp(argv[i], "-p") == 0)
+        {
+            temp_number = atoi(argv[i + 1]);
+            sim_params.remote_port_number = temp_number;
+        }
+        //
+        // Session category argument
+        //
+
+        if (strcmp(argv[i], "-t") == 0)
+        {
+            if (strcmp(argv[i + 1], "normal") == 0)
+            {
+                sim_params.is_measure = false;
+            }
+            else if (strcmp(argv[i + 1], "measure") == 0)
+            {
+                sim_params.is_measure = true;
+            }
+            //raise error
+            else
+            {
+                printf("Session category (-t) not valid\n\n");
+                return 0;
+            }
+        }
+        //
+        // Secure options argument
+        //
+        if (strcmp(argv[i], "-s") == 0)
+        {
+            if (strcmp(argv[i + 1], "secured") == 0)
+            {
+                sim_params.is_secured = true;
+            }
+            else if (strcmp(argv[i + 1], "unsec") == 0)
+            {
+                sim_params.is_secured = false;
+            }
+            //raise error
+            else
+            {
+                printf("Session secure option (-s) not valid\n\n");
+                return 0;
+            }
+        }
+        //
+        // PDU password argument
+        //
+        if (strcmp(argv[i], "-P") == 0)
+        {
+            memcpy(sim_params.PDU_password, argv[i + 1], strlen(argv[i + 1]));
+        }
+        //
+        // Number of commands argument
+        //
+        if (strcmp(argv[i], "-n") == 0)
+        {
+            temp_number = atoi(argv[i + 1]);
+            sim_params.number_of_command = temp_number;
+
+        }
+        //
+        // Message size argument
+        //
+        if (strcmp(argv[i], "-S") == 0)
+        {
+            temp_number = atoi(argv[i + 1]);
+            sim_params.message_size = temp_number;
+
+        }
+    }
+
+    ASSERT(sim_params.remote_ip_address[0] != 0, "Invalid remote IP address");
+    ASSERT(sim_params.remote_port_number != 0, "Invalid remote port number");
+    ASSERT(sim_params.message_size != 0, "Invalid message size");
+    ASSERT(sim_params.is_secured && sim_params.PDU_password[0] != 0, "Secured session but no password");
+    if (sim_params.remote_ip_address[0] == '\0')
+    {
+
+    }
+
+    //
+    // done process argument
+    //
     CryptoInit();
 
 
@@ -90,47 +236,11 @@ int main()
 
         sockaddr_in remoteaddr = { 0 };
         remoteaddr.sin_family = AF_INET;
-        inet_pton(AF_INET, PDU_IP, &remoteaddr.sin_addr);
-        remoteaddr.sin_port = htons(7); // whatever the server is listening on
-
-        int session_category_answer;
-
-        std::cout << "Select session category you want to perform:\n\n1. Normal\n2. Measure\n\nMy answer: ";
-        std::cin >> session_category_answer;
-
-        std::cout << "Select session type you want to perform:\n\n1. Normal Unsecured\n2. Normal Encrypted\n3. Secured\n\nMy answer: ";
-        std::cin >> session_type_answer;
-
-        if (session_type_answer >= 3)
+        inet_pton(AF_INET, sim_params.remote_ip_address, &remoteaddr.sin_addr);
+        remoteaddr.sin_port = htons(sim_params.remote_port_number ); // whatever the server is listening on
+        if (sim_params.is_secured)
         {
-            std::cout << "Please enter PDU password: ";
-            std::cin >> PDU_entered_pass;
-            PDU_password_required = true;
-        }
-        if (session_category_answer > 1)
-        {
-            std::cout << "How many transaction: ";
-            std::cin >> number_of_transaction;
-        }
-        std::cout << "What is message size (1 = 64 bytes, 2 = 256 bytes, 3 = 1024 bytes): ";
-        std::cin >> message_size_answer;
-
-        switch (message_size_answer)
-        {
-        case 1:
-            real_message_size = 64;
-            break;
-        case 2:
-            real_message_size = 256;
-            break;
-        case 3:
-            real_message_size = 1024;
-            break;
-
-        }
-        if (PDU_password_required)
-        {
-            InitNetworkService(PDU_entered_pass);
+            InitNetworkService(sim_params.PDU_password);
         }
         //Connect successfully
         while (1)
@@ -148,17 +258,27 @@ int main()
         }
 
         //Begin measure service
-        switch (session_type_answer)
+
+        if (!sim_params.is_secured)
         {
-        case 1:
-            RunUnsecuredSession(&client_sock, number_of_transaction, real_message_size, false);
-            break;
-        case 2:
-            RunUnsecuredSession(&client_sock, number_of_transaction, real_message_size, true);
-            break;
-        default:
-            RunSecuredSession(&client_sock, number_of_transaction, real_message_size);
+            RunUnsecuredSession(&client_sock, sim_params.number_of_command, sim_params.message_size, false);
         }
+        else
+        {
+            RunSecuredSession(&client_sock, sim_params.number_of_command, sim_params.message_size);
+        }
+
+        //switch (session_type_answer)
+        //{
+        //case 1:
+        //    RunUnsecuredSession(&client_sock, sim_params.number_of_command, sim_params.message_size, false);
+        //    break;
+        //case 2:
+        //    RunUnsecuredSession(&client_sock, sim_params.number_of_command, sim_params.message_size, true);
+        //    break;
+        //default:
+        //    RunSecuredSession(&client_sock, sim_params.number_of_command, sim_params.message_size);
+        //}
 
 
         // close the socket
